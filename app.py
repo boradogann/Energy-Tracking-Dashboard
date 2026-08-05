@@ -8,23 +8,20 @@ st.set_page_config(
 )
 
 st.title("⚡ Akıllı Enerji Tüketim Dashboard'u")
-st.caption(
-    "Gerçek Zamanlı Kaggle Sensör Akışı & Anomali Tespit Sistemi"
-)
+st.caption("Gerçek Zamanlı Kaggle Sensör Akışı & Anomali Tespit Sistemi")
 
 
-# Veriyi Doğrudan İnternet Kaynağından Çeken Fonksiyon
+# 1. Veriyi Hızlıca Çeken Fonksiyon
 @st.cache_data
 def load_data():
     url = "https://archive.ics.uci.edu/static/public/235/individual+household+electric+power+consumption.zip"
-    # Zip dosyasını doğrudan bellekten okur
     df = pd.read_csv(
         url,
         sep=";",
         compression="zip",
         low_memory=False,
         na_values=["?"],
-        nrows=30000,
+        nrows=10000,
     )
     df.ffill(inplace=True)
     df["Timestamp"] = pd.to_datetime(
@@ -36,7 +33,7 @@ def load_data():
 
 
 try:
-    with st.spinner("Enerji veri seti internetten yükleniyor..."):
+    with st.spinner("Enerji veri seti yükleniyor..."):
         energy_df = load_data()
 except Exception as e:
     st.error(f"Veri kaynağına bağlanılamadı: {e}")
@@ -49,11 +46,22 @@ if energy_df is not None:
     voltage_metric = col3.empty()
     chart_spot = st.empty()
 
+    # 2. Grafik Hafızasını İlk 25 Noktayla Hazır Başlat (Gecikmeyi Önler)
     if "history" not in st.session_state:
-        st.session_state.history = {"time": [], "power": []}
+        initial_rows = energy_df.iloc[:25]
+        st.session_state.history = {
+            "time": [
+                r["Timestamp"].strftime("%H:%M:%S")
+                for _, r in initial_rows.iterrows()
+            ],
+            "power": [
+                float(r["Global_active_power"])
+                for _, r in initial_rows.iterrows()
+            ],
+        }
 
-    # Canlı Akış Döngüsü
-    for index in range(len(energy_df)):
+    # Canlı Akış Döngüsü (25. elemandan itibaren devam eder)
+    for index in range(25, len(energy_df)):
         row = energy_df.iloc[index]
         time_str = row["Timestamp"].strftime("%H:%M:%S")
         power_val = float(row["Global_active_power"])
