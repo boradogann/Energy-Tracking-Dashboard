@@ -11,7 +11,7 @@ st.title("⚡ Akıllı Enerji Tüketim Dashboard'u")
 st.caption("Gerçek Zamanlı Kaggle Sensör Akışı & Anomali Tespit Sistemi")
 
 
-# 1. Veriyi Hızlıca Çeken Fonksiyon
+# Veriyi İnternet Kaynağından Çeken Fonksiyon
 @st.cache_data
 def load_data():
     url = "https://archive.ics.uci.edu/static/public/235/individual+household+electric+power+consumption.zip"
@@ -46,29 +46,22 @@ if energy_df is not None:
     voltage_metric = col3.empty()
     chart_spot = st.empty()
 
-    # 2. Grafik Hafızasını İlk 25 Noktayla Hazır Başlat (Gecikmeyi Önler)
+    # 1. Grafiği tamamen BOŞ (0 noktasında) başlatıyoruz
     if "history" not in st.session_state:
-        initial_rows = energy_df.iloc[:25]
-        st.session_state.history = {
-            "time": [
-                r["Timestamp"].strftime("%H:%M:%S")
-                for _, r in initial_rows.iterrows()
-            ],
-            "power": [
-                float(r["Global_active_power"])
-                for _, r in initial_rows.iterrows()
-            ],
-        }
+        st.session_state.history = {"time": [], "power": []}
 
-    # Canlı Akış Döngüsü (25. elemandan itibaren devam eder)
-    for index in range(25, len(energy_df)):
+    # 2. Döngüyü en baştan (0. veriden) başlatıyoruz
+    for index in range(len(energy_df)):
         row = energy_df.iloc[index]
         time_str = row["Timestamp"].strftime("%H:%M:%S")
         power_val = float(row["Global_active_power"])
         voltage_val = float(row["Voltage"])
 
+        # Veriyi ekle
         st.session_state.history["time"].append(time_str)
         st.session_state.history["power"].append(power_val)
+
+        # Ekran dolana kadar (son 25 nokta) grafiği genişlet, 25'ten sonra kaydır
         if len(st.session_state.history["time"]) > 25:
             st.session_state.history["time"].pop(0)
             st.session_state.history["power"].pop(0)
@@ -82,7 +75,7 @@ if energy_df is not None:
         power_metric.subheader(f"⚡ Aktif Güç: {power_val:.2f} kW")
         voltage_metric.subheader(f"🔌 Gerilim: {voltage_val:.1f} V")
 
-        # Grafik
+        # 3. Canlı Grafik
         fig = go.Figure()
         fig.add_trace(
             go.Scatter(
@@ -94,10 +87,16 @@ if energy_df is not None:
                 fillcolor="rgba(56, 189, 248, 0.1)",
             )
         )
+
         fig.update_layout(
             template="plotly_dark",
             height=380,
             margin=dict(l=20, r=20, t=30, b=20),
+            xaxis_title="Zaman",
+            yaxis_title="Aktif Güç (kW)",
+            # Y ekseni ölçeği veri geldikçe bozulmasın diye sabit alan
+            yaxis=dict(range=[0, max(max(st.session_state.history["power"], default=1) + 1, 6)]),
         )
+
         chart_spot.plotly_chart(fig, use_container_width=True)
         time.sleep(0.5)
